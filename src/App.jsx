@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, User, MapPin, Users, Settings, Save, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { Search, User, MapPin, Users, Settings, Save, CheckCircle, AlertCircle, X, RefreshCw } from 'lucide-react';
 
 const App = () => {
     // 頁面狀態: 'search' (查詢) 或 'admin' (管理)
@@ -20,10 +20,48 @@ const App = () => {
     const [query, setQuery] = useState('');
     const [result, setResult] = useState(null);
     const [hasSearched, setHasSearched] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadError, setLoadError] = useState(null);
 
     // 管理介面狀態
     const [rawInput, setRawInput] = useState('');
     const [importStatus, setImportStatus] = useState({ type: '', msg: '' });
+
+    // 資料來源 URL - 直接從 GitHub raw URL 載入
+    const DATA_SOURCE_URL = 'https://raw.githubusercontent.com/cosparkApps/Leaders100-dinner/main/config.json';
+
+    // 載入資料函數
+    const loadData = async () => {
+        setIsLoading(true);
+        setLoadError(null);
+        try {
+            const response = await fetch(DATA_SOURCE_URL);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+
+            // 驗證資料格式
+            if (Array.isArray(data) && data.length > 0) {
+                setParticipants(data);
+                console.log(`✅ 成功載入 ${data.length} 筆資料`);
+            } else {
+                throw new Error('資料格式錯誤或為空');
+            }
+        } catch (error) {
+            console.error('載入資料失敗:', error);
+            setLoadError(error.message);
+            // 失敗時使用預設資料
+            setParticipants(defaultData);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // 初始化時載入資料
+    useEffect(() => {
+        loadData();
+    }, []);
 
     // 搜尋邏輯
     const handleSearch = (e) => {
@@ -190,15 +228,35 @@ const App = () => {
                 {view === 'admin' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                         <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100">
-                            <div className="flex items-center space-x-2 mb-4 border-b pb-4">
-                                <Settings className="w-6 h-6 text-indigo-600" />
-                                <h2 className="text-xl font-bold">資料快速匯入</h2>
+                            <div className="flex items-center justify-between mb-4 border-b pb-4">
+                                <div className="flex items-center space-x-2">
+                                    <Settings className="w-6 h-6 text-indigo-600" />
+                                    <h2 className="text-xl font-bold">資料快速匯入</h2>
+                                </div>
+                                <button
+                                    onClick={loadData}
+                                    disabled={isLoading}
+                                    className="flex items-center space-x-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                                    title="重新載入遠端資料"
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                                    <span className="text-sm">重新載入</span>
+                                </button>
                             </div>
 
                             <div className="space-y-4">
+                                {/* 載入狀態提示 */}
+                                {loadError && (
+                                    <div className="p-3 rounded-lg flex items-center space-x-2 bg-yellow-50 text-yellow-700">
+                                        <AlertCircle className="w-5 h-5" />
+                                        <span className="text-sm">載入遠端資料失敗: {loadError}，目前使用本地資料</span>
+                                    </div>
+                                )}
+
                                 <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-700">
                                     <p className="font-bold mb-1">使用說明：</p>
                                     <ul className="list-disc list-inside space-y-1">
+                                        <li>資料來源: <code className="bg-blue-100 px-1 rounded">{DATA_SOURCE_URL}</code></li>
                                         <li>請從 Excel 直接複製兩欄：<strong>姓名</strong> 與 <strong>桌號</strong></li>
                                         <li>也可以手動輸入，中間用「空白」或「逗號」隔開</li>
                                         <li>第三欄可選填備註 (例如: 素食、女方親友)</li>
